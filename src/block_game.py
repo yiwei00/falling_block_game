@@ -2,7 +2,7 @@
 from enum import Enum
 import random
 from copy import copy
-from piece import Piece, piece_t
+from piece import *
 
 LOCK_DELAY = 30
 
@@ -151,6 +151,38 @@ class BlockGame:
     def can_active_fall(self):
         return self.can_fit(self.active_piece, (self.active_piece_pos[0] + 1, self.active_piece_pos[1]))
 
+    def try_rotate_piece(self, dir):
+        dir = dir % 4
+        if dir == 0:
+            return False
+        rotated_piece = self.active_piece.rotate_n_copy(dir)
+        new_rot = rotated_piece.rotation
+        old_rot = self.active_piece.rotation
+        p_type = self.active_piece.piece_type
+        match p_type:
+            case piece_t.O:
+                kick_offset_table = kick_offset_o
+            case piece_t.I:
+                kick_offset_table = kick_offset_i
+            case default:
+                kick_offset_table = kick_offset_default
+        kick_offsets = []
+        for i in range(len(kick_offset_table[0])):
+            kick_offsets.append((
+                kick_offset_table[old_rot][i][0] - kick_offset_table[new_rot][i][0],
+                kick_offset_table[old_rot][i][1] - kick_offset_table[new_rot][i][1]
+            ))
+        for offset in kick_offsets:
+            if self.can_fit(
+                rotated_piece,
+                (self.active_piece_pos[0] + offset[0], self.active_piece_pos[1] + offset[1])
+            ):
+                self.active_piece = rotated_piece
+                self.active_piece_pos = (self.active_piece_pos[0] + offset[0], self.active_piece_pos[1] + offset[1])
+                return True
+        return False
+
+
     def next_state(self):
         if self.is_over:
             return
@@ -186,9 +218,7 @@ class BlockGame:
         # rotate piece
         move_success = False
         if rot_dir != 0:
-            rotated_piece = self.active_piece.rotate_n_copy(rot_dir)
-            if self.can_fit(rotated_piece, self.active_piece_pos):
-                self.active_piece = rotated_piece
+            if (self.try_rotate_piece(rot_dir)):
                 move_success = True
         # move piece
         if (self.move_active_piece(offset)):
@@ -298,6 +328,15 @@ class BlockGame:
                     c = active_piece_disp_pos[1] + (col - center[1])
                     display_board[r][c].state = 2
         return display_board
+
+    def get_preview_pieces(self, n):
+        if n > 7:
+            n = 7
+        indices = self.bag.preview_bag(n)
+        pieces = []
+        for i in indices:
+            pieces.append(copy(piece_set[i]))
+        return pieces
 
 
     def __str__(self):

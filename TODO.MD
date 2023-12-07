@@ -13,11 +13,11 @@
 - [x] Game Over State
 - [x] L/R Movement
 - [x] Hard Drop
-- [ ] Wall Kick
+- [x] Wall Kick
+- [ ] Hold
 
 ## Stretch Goals
 
-- [ ] Hold
 - [ ] Ghost Piece
 - [ ] Soft Drop
 - [ ] Colored Pieces
