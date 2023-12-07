@@ -6,19 +6,28 @@
 - [x] Pieces
 - [X] Falling
 - [x] Locking into Place
-- [ ] Line Clearing
-- [ ] Scoring
-- [ ] Rotation System
+- [x] Line Clearing
+- [x] Basic Scoring
+- [x] Rotation
 - [x] 7-Bag RNG
-- [ ] Game Over State
-- [ ] L/R Movement
-- [ ] Hard Drop
+- [x] Game Over State
+- [x] L/R Movement
+- [x] Hard Drop
+- [ ] Wall Kick
 
 ## Stretch Goals
+
 - [ ] Hold
-- [ ] SRS Rotation
 - [ ] Ghost Piece
 - [ ] Soft Drop
 - [ ] Colored Pieces
-- [ ] Pygame GUI
-- [ ] Delayed Lock
+- [x] Pygame GUI
+- [x] Delayed Lock
+- [x] Gravity
+
+## Scoring Implemented
+- [x] Single, Double, Triple, Quadro
+- [ ] T-Tricks
+- [ ] Back-to-Back
+- [x] Combo
+- [ ] Drops Bonus
