@@ -14,7 +14,9 @@
 - [x] L/R Movement
 - [x] Hard Drop
 - [x] Wall Kick
-- [ ] Hold
+- [x] Hold
+- [ ] T-Tricks
+- [x] Leveling up
 
 ## Stretch Goals
 
@@ -27,7 +29,6 @@
 
 ## Scoring Implemented
 - [x] Single, Double, Triple, Quadro
-- [ ] T-Tricks
 - [ ] Back-to-Back
 - [x] Combo
 - [ ] Drops Bonus

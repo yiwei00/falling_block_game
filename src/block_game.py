@@ -61,7 +61,11 @@ class Cell:
         return c
 
 class BlockGame:
-    def __init__(self):
+    def __init__(self, start_lvl = 1):
+        self.start_lvl = start_lvl
+        self.reset()
+
+    def reset(self):
         self.width = 10
         self.height = 20
         self.buffer = 20
@@ -72,7 +76,7 @@ class BlockGame:
 
         # Drop the first piece
         self.bag = n_bag(piece_set)
-        self.spawn_pos = (self.buffer - 1, self.width//2 -1)
+        self.spawn_pos = (self.buffer - 2, self.width//2 -1)
         self.active_piece = None
         self.active_piece_pos = (0, 0)
         self.drop_piece(self.bag.grab_item())
@@ -80,14 +84,23 @@ class BlockGame:
         # actions
         self.last_action = action_t.NONE
 
-        # state keeping
+        # misc state keeping
         self.is_over = False
         self.hard_drop = False
-        self.RESET_LIMIT = 15
-        self.frames_per_line = 10
+
+        # hold piece
+        self.just_held = False
+        self.hold_piece = None
+
+        # game speed
+        self.game_speed_curve = [
+            60, 56, 51, 47, 43, 38, 34, 30, 25, 21, 17, 12, 8, 4, 1
+        ]
+        self.frames_per_line = 30
         self.frame_count = 0
 
         # lock delay
+        self.RESET_LIMIT = 15
         self.lock_delay_started = False
         self.lock_time = 0
         self.n_resets = 0
@@ -96,6 +109,8 @@ class BlockGame:
         self.score = 0
         self.line_count = 0
         self.combo_count = -1
+        self.level = self.start_lvl
+
 
     def set_action(self, action):
         self.last_action = action
@@ -210,6 +225,18 @@ class BlockGame:
             case action_t.ROTATE_RIGHT:
                 rot_dir = 1
                 pass
+            case action_t.HOLD:
+                if not self.just_held:
+                    self.just_held = True
+                    self.hard_reset_lock_delay()
+                    if self.hold_piece is None:
+                        self.hold_piece = self.active_piece.piece_type
+                        self.drop_piece(self.bag.grab_item())
+                    else:
+                        temp_piece = self.active_piece.piece_type
+                        self.drop_piece(Piece(self.hold_piece))
+                        self.hold_piece = temp_piece
+                pass
             case default:
                 print('Unimplemented action: ' + str(self.last_action.name))
         self.last_action = action_t.NONE
@@ -254,6 +281,8 @@ class BlockGame:
             if not lock_on_visible:
                 self.is_over = True
             else:
+                # reset held
+                self.just_held = False
                 # check for clear
                 clear_count = 0
                 while True:
@@ -286,9 +315,15 @@ class BlockGame:
                         case default:
                             raise Exception('Invalid clear count: ' + str(clear_count))
                     combo_score = 50 * (self.combo_count - 1)
-                    self.score += line_score + combo_score
+                    self.score += (line_score + combo_score) * self.level
                 else:
                     self.combo_count = -1
+                # update level
+                self.level = self.start_lvl + self.line_count // 10
+                if self.level > 15:
+                    self.level = 15
+                # update gravity
+                self.frames_per_line = self.game_speed_curve[self.level - 1]
                 # drop new piece
                 self.drop_piece(self.bag.grab_item())
 
