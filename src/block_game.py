@@ -111,6 +111,10 @@ class BlockGame:
         self.combo_count = -1
         self.level = self.start_lvl
 
+        # t-trick
+        self.t_trick_possible = False
+        self.t_trick_offset = (0, 0)
+
 
     def set_action(self, action):
         self.last_action = action
@@ -192,6 +196,11 @@ class BlockGame:
                 rotated_piece,
                 (self.active_piece_pos[0] + offset[0], self.active_piece_pos[1] + offset[1])
             ):
+                if p_type == piece_t.T:
+                    self.t_trick_possible = True
+                    self.t_trick_offset = offset
+                else:
+                    self.t_trick_possible = False
                 self.active_piece = rotated_piece
                 self.active_piece_pos = (self.active_piece_pos[0] + offset[0], self.active_piece_pos[1] + offset[1])
                 return True
@@ -250,6 +259,7 @@ class BlockGame:
         # move piece
         if (self.move_active_piece(offset)):
             move_success = True
+            self.t_trick_possible = False
         if self.hard_drop:
             while self.move_active_piece((1, 0)):
                 pass
@@ -267,6 +277,7 @@ class BlockGame:
                 self.start_lock_delay()
         if self.hard_drop or (self.should_lock()):
             # setting active into board
+            t_trick = 0
             self.hard_drop = False
             self.hard_reset_lock_delay()
             lock_on_visible = False
@@ -278,11 +289,64 @@ class BlockGame:
                         self.board[r][c].state = 1
                         if r > self.buffer:
                             lock_on_visible = True
-            if not lock_on_visible:
+            if not lock_on_visible: # if set above the visible board, game over
                 self.is_over = True
             else:
                 # reset held
                 self.just_held = False
+                # check for t-trick
+                if self.active_piece.piece_type == piece_t.T and self.t_trick_possible:
+                    match self.active_piece.rotation:
+                        case 0:
+                            front_pos = [
+                                (0, 0), (0, 2)
+                            ]
+                            back_pos = [
+                                (2, 0), (2, 2)
+                            ]
+                        case 1:
+                            front_pos = [
+                                (0, 2), (2, 2)
+                            ]
+                            back_pos = [
+                                (0, 0), (2, 0)
+                            ]
+                        case 2:
+                            front_pos = [
+                                (2, 0), (2, 2)
+                            ]
+                            back_pos = [
+                                (0, 0), (0, 2)
+                            ]
+                        case 3:
+                            front_pos = [
+                                (2, 2), (0, 2)
+                            ]
+                            back_pos = [
+                                (2, 0), (0, 0)
+                            ]
+                        case default:
+                            raise Exception('Invalid rotation: ' + str(self.active_piece.rotation))
+                    front_obs, back_obs = 0, 0
+                    for pos in front_pos:
+                        r = self.active_piece_pos[0] + (pos[0] - center[0])
+                        c = self.active_piece_pos[1] + (pos[1] - center[1])
+                        if self.board[r][c].state == 1:
+                            front_obs += 1
+                    for pos in back_pos:
+                        r = self.active_piece_pos[0] + (pos[0] - center[0])
+                        c = self.active_piece_pos[1] + (pos[1] - center[1])
+                        if self.board[r][c].state == 1:
+                            back_obs += 1
+                    if front_obs == 2 and back_obs > 0:
+                        t_trick = 2
+                    elif back_obs == 2 and front_obs > 0:
+                        if (
+                            (abs(self.t_trick_offset[1]) + abs(self.t_trick_offset[0])) >= 3
+                        ):
+                            t_trick = 2
+                        t_trick = 1
+                    self.t_trick_possible = False
                 # check for clear
                 clear_count = 0
                 while True:
@@ -300,24 +364,46 @@ class BlockGame:
                         break
                 self.line_count += clear_count
                 # scoring
+                t_trick_score = 0
+                line_score = 0
+                combo_score = 0
+                if t_trick == 1:
+                    t_trick_score = 100
+                elif t_trick == 2:
+                    t_trick_score = 400
                 if clear_count > 0:
                     self.combo_count += 1
                     line_score = 0
                     match clear_count:
                         case 1:
                             line_score = 100
+                            if t_trick == 1:
+                                t_trick_score = 200
+                            elif t_trick == 2:
+                                t_trick_score = 800
+                            else:
+                                t_trick_score = 0
                         case 2:
                             line_score = 300
+                            if t_trick == 1:
+                                t_trick_score = 400
+                            elif t_trick == 2:
+                                t_trick_score = 1200
+                            else:
+                                t_trick_score = 0
                         case 3:
                             line_score = 500
+                            if t_trick > 0:
+                                t_trick_score = 1600
                         case 4:
                             line_score = 800
                         case default:
                             raise Exception('Invalid clear count: ' + str(clear_count))
                     combo_score = 50 * (self.combo_count - 1)
-                    self.score += (line_score + combo_score) * self.level
                 else:
                     self.combo_count = -1
+
+                self.score += (line_score + combo_score + t_trick_score) * self.level
                 # update level
                 self.level = self.start_lvl + self.line_count // 10
                 if self.level > 15:

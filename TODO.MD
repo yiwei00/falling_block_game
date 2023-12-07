@@ -15,7 +15,7 @@
 - [x] Hard Drop
 - [x] Wall Kick
 - [x] Hold
-- [ ] T-Tricks
+- [x] T-Tricks
 - [x] Leveling up
 
 ## Stretch Goals
