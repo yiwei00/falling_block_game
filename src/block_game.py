@@ -302,6 +302,8 @@ class BlockGame:
                     if self.active_piece.shape[row][col] == 1:
                         r = self.active_piece_pos[0] + (row - center[0])
                         c = self.active_piece_pos[1] + (col - center[1])
+                        if (r < 0 or r >= self.true_height or c < 0 or c >= self.width):
+                            continue
                         self.board[r][c].state = 1
                         if r > self.buffer:
                             lock_on_visible = True
@@ -347,11 +349,15 @@ class BlockGame:
                     for pos in front_pos:
                         r = self.active_piece_pos[0] + (pos[0] - center[0])
                         c = self.active_piece_pos[1] + (pos[1] - center[1])
+                        if (r < 0 or r >= self.true_height or c < 0 or c >= self.width):
+                            continue
                         if self.board[r][c].state == 1:
                             front_obs += 1
                     for pos in back_pos:
                         r = self.active_piece_pos[0] + (pos[0] - center[0])
                         c = self.active_piece_pos[1] + (pos[1] - center[1])
+                        if (r < 0 or r >= self.true_height or c < 0 or c >= self.width):
+                            continue
                         if self.board[r][c].state == 1:
                             back_obs += 1
                     if front_obs == 2 and back_obs > 0:

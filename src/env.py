@@ -1,7 +1,12 @@
 import numpy as np
 from block_game import *
-from gymnasium import Env as GymEnv, spaces
+from gymnasium import Env, spaces
+import gymnasium
 from stable_baselines3.common.env_checker import check_env
+import pygame as pg
+
+CELL_SIZE = 25
+TICK_RATE = 60
 
 def piece2num(piece):
     return piece.piece_type.value
@@ -9,7 +14,7 @@ def piece2num(piece):
 def num2act(num):
     return action_t(num)
 
-class BlockGameEnv(GymEnv):
+class BlockGameEnv(Env):
     def __init__(self, n_preview=5, line_limit=150):
         self.n_preview = n_preview
         self.game = BlockGame()
@@ -22,6 +27,10 @@ class BlockGameEnv(GymEnv):
 
         self.action_space = spaces.Discrete(len(action_t))
         self.observation_space = spaces.MultiDiscrete(board_space + preview_space + misc_space)
+
+        pg.init()
+        self.screen = pg.display.set_mode((800, 600))
+        self.clock = pg.time.Clock()
 
 
     def reset(self, seed = None):
@@ -70,7 +79,37 @@ class BlockGameEnv(GymEnv):
         r = (self.game.score - self.prev_score)
         self.prev_score = self.game.score
         return r
-    def is_terminal(self):
-        return self.game.is_over
+
+    def render(self, mode='human'):
+        if mode != 'human':
+            return
+        self.screen.fill((0, 0, 0))
+        grid_width = self.game.width * CELL_SIZE
+        grid_height = self.game.height * CELL_SIZE
+        grid_x = (self.screen.get_width() - grid_width) // 2
+        grid_y = (self.screen.get_height() - grid_height) // 2
+        board = self.game.get_visible_board()
+        for y in range(self.game.height):
+            for x in range(self.game.width):
+                rect = pg.Rect(grid_x + x * CELL_SIZE, grid_y + y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+                if board[y][x].state == 1:
+                    pg.draw.rect(self.screen, "white", rect)
+                elif board[y][x].state == 2:
+                    pg.draw.rect(self.screen, "red", rect)
+                else:
+                    pg.draw.rect(self.screen, "white", rect, 1)
+        print(self.game.score, self.game.level)
+        pg.display.flip()
+        self.clock.tick(TICK_RATE)
+
+    def close(self):
+        pg.quit()
+        exit(0)
 
 print(check_env(BlockGameEnv()))
+
+gymnasium.register(
+    id='BlockGame-v0',
+    entry_point='env:BlockGameEnv',
+    kwargs={'n_preview': 5, 'line_limit': 150}
+)
