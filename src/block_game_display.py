@@ -8,7 +8,7 @@ def main():
     pg.init()
     screen = pg.display.set_mode((800, 600))
     clock = pg.time.Clock()
-    game = BlockGame(1)
+    game = BlockGame(1, rand_board=True)
     while True:
         # input
         for event in pg.event.get():

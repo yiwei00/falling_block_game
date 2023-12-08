@@ -3,6 +3,7 @@ from enum import Enum
 import random
 from copy import copy
 from piece import *
+import numpy as np
 
 LOCK_DELAY = 30
 
@@ -59,11 +60,27 @@ class Cell:
         return c
 
 class BlockGame:
-    def __init__(self, seed = None, start_lvl = 1, line_limit = 150):
+    def __init__(self,
+        seed = None,
+        start_lvl = 1,
+        line_limit = 150,
+        rand_board = False,
+        n_holes = 1,
+        set_speed = None
+    ):
         if seed is not None:
             random.seed(seed)
         self.start_lvl = min(start_lvl, 15)
         self.line_limit = line_limit
+        self.random_start = rand_board
+        self.random_holes = n_holes
+        self.set_speed = set_speed
+        if self.set_speed is not None:
+            self.game_speed_curve = lambda x: self.set_speed
+        else:
+            self.game_speed_curve = lambda i: [
+                60, 56, 51, 47, 43, 38, 34, 30, 25, 21, 17, 12, 8, 4, 0
+            ][i]
         self.reset()
 
     def reset(self):
@@ -74,6 +91,16 @@ class BlockGame:
 
         self.board = [[Cell(x, y) for x in range(self.width)] for y in range(self.height + self.buffer)]
         self.block_queue = []
+        if self.random_start:
+            for row in self.board[:-11:-1]:
+                nums = list(range(self.width))
+                random.shuffle(nums)
+                to_remove = nums[:self.random_holes]
+                for i in range(len(row)):
+                    if i in to_remove:
+                        row[i].state = 0
+                    else:
+                        row[i].state = 1
 
         # Drop the first piece
         self.bag = n_bag(piece_set)
@@ -84,22 +111,19 @@ class BlockGame:
 
         # actions
         self.last_action = action_t.NONE
-        self.soft_dropping = False
         self.soft_drop_fpl = 8
 
         # misc state keeping
         self.is_over = False
         self.hard_drop = False
+        self.soft_drop = False
 
         # hold piece
         self.just_held = False
         self.hold_piece = None
 
         # game speed
-        self.game_speed_curve = [
-            60, 56, 51, 47, 43, 38, 34, 30, 25, 21, 17, 12, 8, 4, 0
-        ]
-        self.frames_per_line = self.game_speed_curve[self.start_lvl - 1]
+        self.frames_per_line = self.game_speed_curve(self.start_lvl - 1)
         self.frame_count = 0
         self.last_fall_frame = 0
 
@@ -233,7 +257,7 @@ class BlockGame:
                 self.hard_drop = True
                 pass
             case action_t.SOFT_DROP:
-                self.soft_dropping = not self.soft_dropping
+                self.soft_drop = True
                 pass
             case action_t.ROTATE_LEFT:
                 rot_dir = -1
@@ -284,8 +308,9 @@ class BlockGame:
                     self.last_fall_frame = self.frame_count
             elif (
                     ((self.frame_count - self.frames_per_line) % self.frames_per_line == 0) or
-                    (self.soft_dropping and (self.frame_count - self.last_fall_frame) >= self.soft_drop_fpl)
+                    (self.soft_drop)
                 ):
+                self.soft_drop = False
                 if self.move_active_piece((1, 0)):
                     self.hard_reset_lock_delay()
                     self.last_fall_frame = self.frame_count
@@ -434,9 +459,7 @@ class BlockGame:
                 self.level = self.start_lvl + self.line_count // 10
                 self.level = min(self.level, 15)
                 # update gravity
-                self.frames_per_line = self.game_speed_curve[self.level - 1]
-                # turn off soft drop
-                self.soft_dropping = False
+                self.frames_per_line = self.game_speed_curve(self.level - 1)
                 # drop new piece
                 self.drop_piece(self.bag.grab_item())
 

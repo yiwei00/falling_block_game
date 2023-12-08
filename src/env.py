@@ -6,7 +6,7 @@ from stable_baselines3.common.env_checker import check_env
 import pygame as pg
 
 CELL_SIZE = 25
-TICK_RATE = 60
+TICK_RATE = 30
 
 def piece2num(piece):
     return piece.piece_type.value
@@ -15,9 +15,14 @@ def num2act(num):
     return action_t(num)
 
 class BlockGameEnv(Env):
-    def __init__(self, n_preview=5, line_limit=150):
+    def __init__(self, n_preview=5, line_limit=150, rand_board = False, n_holes = 1, set_speed = None):
         self.n_preview = n_preview
-        self.game = BlockGame()
+        self.game = BlockGame(
+            line_limit=line_limit,
+            rand_board=rand_board,
+            n_holes=n_holes,
+            set_speed=set_speed
+        )
         self.prev_score = 0
 
         board_size = self.game.width * self.game.height
@@ -78,6 +83,8 @@ class BlockGameEnv(Env):
     def reward(self):
         r = (self.game.score - self.prev_score)
         self.prev_score = self.game.score
+        if self.game.is_over:
+            r -= 10_000
         return r
 
     def render(self, mode='human'):
@@ -111,5 +118,11 @@ print(check_env(BlockGameEnv()))
 gymnasium.register(
     id='BlockGame-v0',
     entry_point='env:BlockGameEnv',
-    kwargs={'n_preview': 5, 'line_limit': 150}
+    kwargs={
+        'n_preview': 5,
+        'line_limit': 150,
+        'rand_board': False,
+        'n_holes': 1,
+        'set_speed': None
+    }
 )
