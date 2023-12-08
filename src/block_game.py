@@ -12,10 +12,11 @@ class action_t(Enum):
     NONE = 0
     LEFT = 1
     RIGHT = 2
-    HARD_DROP = 3
-    ROTATE_LEFT = 4
-    ROTATE_RIGHT = 5
-    HOLD = 6
+    ROTATE_LEFT = 3
+    ROTATE_RIGHT = 4
+    HARD_DROP = 5
+    SOFT_DROP = 6
+    HOLD = 7
     def __repr__(self) -> str:
         return super().__repr__()
 
@@ -62,7 +63,7 @@ class Cell:
 
 class BlockGame:
     def __init__(self, start_lvl = 1):
-        self.start_lvl = start_lvl
+        self.start_lvl = min(start_lvl, 16)
         self.reset()
 
     def reset(self):
@@ -83,6 +84,8 @@ class BlockGame:
 
         # actions
         self.last_action = action_t.NONE
+        self.soft_dropping = False
+        self.soft_drop_fpl = 8
 
         # misc state keeping
         self.is_over = False
@@ -94,10 +97,11 @@ class BlockGame:
 
         # game speed
         self.game_speed_curve = [
-            60, 56, 51, 47, 43, 38, 34, 30, 25, 21, 17, 12, 8, 4, 1
+            60, 56, 51, 47, 43, 38, 34, 30, 25, 21, 17, 12, 8, 4, 1, 0
         ]
-        self.frames_per_line = 30
+        self.frames_per_line = self.game_speed_curve[self.start_lvl - 1]
         self.frame_count = 0
+        self.last_fall_frame = 0
 
         # lock delay
         self.RESET_LIMIT = 15
@@ -228,6 +232,9 @@ class BlockGame:
             case action_t.HARD_DROP:
                 self.hard_drop = True
                 pass
+            case action_t.SOFT_DROP:
+                self.soft_dropping = not self.soft_dropping
+                pass
             case action_t.ROTATE_LEFT:
                 rot_dir = -1
                 pass
@@ -269,13 +276,22 @@ class BlockGame:
         # see if time to fall, and if so, fall
         # if at bottom, start lock delay if not started
         # if fall, then reset lock delay
-        if self.can_active_fall():
-            if (self.frame_count - self.lock_time) % self.frames_per_line == 0:
+        can_fall = self.can_active_fall()
+        if can_fall:
+            if self.frames_per_line == 0:
+                while self.move_active_piece((1, 0)):
+                    self.hard_reset_lock_delay()
+                    self.last_fall_frame = self.frame_count
+            elif (
+                    ((self.frame_count - self.frames_per_line) % self.frames_per_line == 0) or
+                    (self.soft_dropping and (self.frame_count - self.last_fall_frame) >= self.soft_drop_fpl)
+                ):
                 if self.move_active_piece((1, 0)):
                     self.hard_reset_lock_delay()
+                    self.last_fall_frame = self.frame_count
         elif not self.lock_delay_started:
                 self.start_lock_delay()
-        if self.hard_drop or (self.should_lock()):
+        if (not can_fall) and (self.hard_drop or (self.should_lock())):
             # setting active into board
             t_trick = 0
             self.hard_drop = False
@@ -399,17 +415,18 @@ class BlockGame:
                             line_score = 800
                         case default:
                             raise Exception('Invalid clear count: ' + str(clear_count))
-                    combo_score = 50 * (self.combo_count - 1)
+                    combo_score = 50 * (self.combo_count)
                 else:
                     self.combo_count = -1
 
                 self.score += (line_score + combo_score + t_trick_score) * self.level
                 # update level
                 self.level = self.start_lvl + self.line_count // 10
-                if self.level > 15:
-                    self.level = 15
+                self.level = min(self.level, 16)
                 # update gravity
                 self.frames_per_line = self.game_speed_curve[self.level - 1]
+                # turn off soft drop
+                self.soft_dropping = False
                 # drop new piece
                 self.drop_piece(self.bag.grab_item())
 
@@ -447,6 +464,8 @@ class BlockGame:
                 if self.active_piece.shape[row][col] == 1:
                     r = active_piece_disp_pos[0] + (row - center[0])
                     c = active_piece_disp_pos[1] + (col - center[1])
+                    if r < 0 or r >= self.height or c < 0 or c >= self.width:
+                        continue
                     display_board[r][c].state = 2
         return display_board
 

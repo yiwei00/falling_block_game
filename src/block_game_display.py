@@ -8,7 +8,7 @@ def main():
     pg.init()
     screen = pg.display.set_mode((800, 600))
     clock = pg.time.Clock()
-    game = BlockGame()
+    game = BlockGame(1)
     while True:
         # input
         for event in pg.event.get():
@@ -21,6 +21,8 @@ def main():
                         game.set_action(action_t.LEFT)
                     case pg.K_RIGHT:
                         game.set_action(action_t.RIGHT)
+                    case pg.K_DOWN:
+                        game.set_action(action_t.SOFT_DROP)
                     case pg.K_z:
                         game.set_action(action_t.ROTATE_LEFT)
                     case pg.K_x:
@@ -51,6 +53,7 @@ def main():
                     pg.draw.rect(screen, "red", rect)
                 else:
                     pg.draw.rect(screen, "white", rect, 1)
+        print(game.score, game.level)
         pg.display.flip()
         clock.tick(TICK_RATE)
 
