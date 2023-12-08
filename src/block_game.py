@@ -42,9 +42,13 @@ class n_bag:
             self.gen_next_bag()
         return copy(self.item_set[item_idx])
 
-piece_set = [Piece(piece_t.J), Piece(piece_t.L), Piece(piece_t.O), Piece(piece_t.I), Piece(piece_t.T), Piece(piece_t.S), Piece(piece_t.Z)]
-action_set = [action_t.NONE, action_t.LEFT, action_t.RIGHT, action_t.HARD_DROP, action_t.ROTATE_LEFT, action_t.ROTATE_RIGHT, action_t.HOLD]
+piece_set = copy(list(piece_t))
+action_set = copy(list(action_t))
 
+std_piece_set = [
+    piece_t.J, piece_t.L, piece_t.O, piece_t.I, piece_t.T, piece_t.S, piece_t.Z
+]
+dot_piece_set = [piece_t.dot]
 class Cell:
     def __init__(self, x, y, state=0):
         self.x = x
@@ -64,17 +68,15 @@ class BlockGame:
         seed = None,
         start_lvl = 1,
         line_limit = 150,
-        rand_board = False,
-        n_holes = 1,
         set_speed = None,
+        starting_board = None,
+        piece_subset = std_piece_set,
         **kwargs
     ):
         if seed is not None:
             random.seed(seed)
         self.start_lvl = min(start_lvl, 15)
         self.line_limit = line_limit
-        self.random_start = rand_board
-        self.random_holes = n_holes
         self.set_speed = set_speed
         if self.set_speed is not None:
             self.game_speed_curve = lambda x: self.set_speed
@@ -82,6 +84,8 @@ class BlockGame:
             self.game_speed_curve = lambda i: [
                 60, 56, 51, 47, 43, 38, 34, 30, 25, 21, 17, 12, 8, 4, 0
             ][i]
+        self.starting_board = starting_board
+        self.piece_subset = piece_subset
         self.reset()
 
     def reset(self):
@@ -91,20 +95,20 @@ class BlockGame:
         self.true_height = self.height + self.buffer
 
         self.board = [[Cell(x, y) for x in range(self.width)] for y in range(self.height + self.buffer)]
+        if self.starting_board is not None:
+            for row in range(len(self.starting_board)):
+                for col in range(len(self.starting_board[row])):
+                    self.board[self.buffer + row][col].state = self.starting_board[row][col]
         self.block_queue = []
-        if self.random_start:
-            for row in self.board[:-11:-1]:
-                nums = list(range(self.width))
-                random.shuffle(nums)
-                to_remove = nums[:self.random_holes]
-                for i in range(len(row)):
-                    if i in to_remove:
-                        row[i].state = 0
-                    else:
-                        row[i].state = 1
 
         # Drop the first piece
-        self.bag = n_bag(piece_set)
+        if self.piece_subset is None:
+            self.bag = n_bag(piece_set)
+        else:
+            if all([p in piece_set for p in self.piece_subset]):
+                self.bag = n_bag(self.piece_subset)
+            else:
+                raise Exception('Invalid piece subset')
         self.spawn_pos = (self.buffer - 2, self.width//2 -1)
         self.active_piece = None
         self.active_piece_pos = (0, 0)
@@ -118,6 +122,7 @@ class BlockGame:
         self.is_over = False
         self.hard_drop = False
         self.soft_drop = False
+        self.is_full_clear = False
 
         # hold piece
         self.just_held = False
@@ -212,6 +217,8 @@ class BlockGame:
                 kick_offset_table = kick_offset_o
             case piece_t.I:
                 kick_offset_table = kick_offset_i
+            case piece_t.dot:
+                kick_offset_table = kick_offset_dot
             case default:
                 kick_offset_table = kick_offset_default
         kick_offsets = []
@@ -275,7 +282,7 @@ class BlockGame:
                         self.drop_piece(self.bag.grab_item())
                     else:
                         temp_piece = self.active_piece.piece_type
-                        self.drop_piece(Piece(self.hold_piece))
+                        self.drop_piece(self.hold_piece)
                         self.hold_piece = temp_piece
                 pass
             case default:
@@ -336,6 +343,7 @@ class BlockGame:
             if not lock_on_visible: # if set above the visible board, game over
                 self.is_over = True
             else:
+                self.is_full_clear = False
                 # reset held
                 self.just_held = False
                 # check for t-trick
@@ -411,6 +419,12 @@ class BlockGame:
                     if not found_clear:
                         break
                 self.line_count += clear_count
+                if clear_count > 0:
+                    self.is_full_clear = all(
+                        all(
+                            [self.board[r][c].state != 1 for c in range(self.width)]
+                        ) for r in range(self.true_height)
+                    )
                 # scoring
                 t_trick_score = 0
                 line_score = 0
@@ -521,10 +535,15 @@ class BlockGame:
             for col in range(self.width):
                 line += str(board_to_print[row][col])
             s += line + '\n'
+        hold = '?' if self.hold_piece is None else self.hold_piece.name
+        next_pieces = ' '.join(f'[{p.name}]' for p in self.get_preview_pieces(5))
+        last_action = self.last_action.name
+        s += f'Hold: {hold} | Next: {next_pieces} | Action: {last_action}\n'
+        s += f'Score: {self.score} | Lines: {self.line_count}/{self.line_limit} | Level: {self.level}\n'
         return s
 
     def drop_piece(self, piece):
-        self.active_piece = piece
+        self.active_piece = Piece(piece)
         self.active_piece_pos = self.spawn_pos
 
         # if spawning on top of another piece, set game over

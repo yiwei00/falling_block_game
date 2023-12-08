@@ -8,11 +8,14 @@ class piece_t(Enum):
     T = 4
     S = 5
     Z = 6
+    dot = 7
     def __repr__(self) -> str:
         return super().__repr__()
 
 class Piece:
     def __init__(self, piece_type, rotation=0):
+        if type(piece_type) == int:
+            piece_type = piece_t(piece_type)
         self.piece_type = piece_type
         self.rotation = rotation
         self.center = (1,1) if piece_type != piece_t.I else (2,2)
@@ -139,12 +142,36 @@ class Piece:
                 self.shape = [[0, 1, 0],
                               [1, 1, 0],
                               [1, 0, 0]]
+            case (piece_t.dot, 0):
+                self.shape = [[0, 0, 0],
+                              [0, 1, 0],
+                              [0, 0, 0]]
+            case (piece_t.dot, 1):
+                self.shape = [[0, 0, 0],
+                              [0, 1, 0],
+                              [0, 0, 0]]
+            case (piece_t.dot, 2):
+                self.shape = [[0, 0, 0],
+                              [0, 1, 0],
+                              [0, 0, 0]]
+            case (piece_t.dot, 3):
+                self.shape = [[0, 0, 0],
+                              [0, 1, 0],
+                              [0, 0, 0]]
             case default:
+                print('shouldn\'t be here')
                 pass
-        pass
+
     def rotate_n_copy(self, dir):
         dir = (dir + self.rotation) % 4
         return Piece(self.piece_type, dir)
+
+kick_offset_dot = {
+    0: [(0, 0)],
+    1: [(0, 0)],
+    2: [(0, 0)],
+    3: [(0, 0)]
+}
 
 kick_offset_default = {
     0: [(0, 0), (0, 0), (0, 0), (0, 0), (0, 0)],

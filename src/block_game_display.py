@@ -1,5 +1,6 @@
 import pygame as pg
-from block_game import BlockGame, action_t
+from block_game import BlockGame, action_t, std_piece_set, dot_piece_set
+import random
 
 CELL_SIZE = 25
 TICK_RATE = 60
@@ -8,7 +9,7 @@ def main():
     pg.init()
     screen = pg.display.set_mode((800, 600))
     clock = pg.time.Clock()
-    game = BlockGame(1, rand_board=True)
+    game = BlockGame(1, piece_subset=dot_piece_set)
     while True:
         # input
         for event in pg.event.get():
@@ -34,6 +35,9 @@ def main():
 
         # update game state
         if game.is_over:
+            exit(0)
+        if game.is_full_clear:
+            print('you win')
             exit(0)
         game.update_state()
 

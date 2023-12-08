@@ -9,39 +9,45 @@ CELL_SIZE = 25
 TICK_RATE = 20
 
 def piece2num(piece):
-    return piece.piece_type.value
+    return piece.value
 
 def num2act(num):
     return action_t(num)
 
+def gen_dot_board(n = 15, width = 10, height = 20):
+    board = [[0 for _ in range(width)] for _ in range(height)]
+    for r in range(height)[:-(n+1):-1]:
+        empty = random.randint(0, width-1)
+        for c in range(width):
+            if c != empty:
+                board[r][c] = 1
+    return board
+
 class BlockGameEnv(Env):
-    def __init__(self, n_preview=5, line_limit=150, rand_board = False, n_holes = 1, set_speed = None):
-        self.n_preview = n_preview
-        self.game = BlockGame(
-            line_limit=line_limit,
-            rand_board=rand_board,
-            n_holes=n_holes,
-            set_speed=set_speed
-        )
+    def __init__(self, n_preview=5, line_limit=150, set_speed = None, dot_game = False):
+        self.n_preview = n_preview if not dot_game else 1
         self.game_args = {
             'line_limit': line_limit,
-            'rand_board': rand_board,
-            'n_holes': n_holes,
-            'set_speed': set_speed
+            'set_speed': set_speed,
+            'starting_board': None,
+            'piece_subset': std_piece_set,
         }
+        if dot_game:
+            self.game_args['piece_subset'] = dot_piece_set
+            self.game_args['starting_board'] = gen_dot_board()
         self.prev_score = 0
+        self.game = BlockGame(
+            **self.game_args
+        )
 
         board_size = self.game.width * self.game.height
         board_space = [3] * board_size
-        preview_space = [7] * n_preview
-        misc_space = [8, 2, line_limit//10 + 2, 16, line_limit + 1, line_limit + 2]
+        preview_space = [len(piece_t)] * self.n_preview
+        # hold piece (int), just held (bool), level (int), n resets (int), line count (int), combo count (int)
+        misc_space = [len(piece_t) + 1, 2, line_limit//10 + 2, 16, line_limit + 1, line_limit + 2]
 
         self.action_space = spaces.Discrete(len(action_t))
         self.observation_space = spaces.MultiDiscrete(board_space + preview_space + misc_space)
-
-        pg.init()
-        self.screen = pg.display.set_mode((800, 600))
-        self.clock = pg.time.Clock()
 
 
     def reset(self, seed = None):
@@ -59,7 +65,7 @@ class BlockGameEnv(Env):
         new_score = self.game.score
         reward = new_score - self.prev_score
         self.prev_score = new_score
-        return self.get_state(), reward, self.game.is_over, False, {}
+        return self.get_state(), reward, self.game.is_over or self.game.is_full_clear, False, {}
 
     def get_state(self):
         state_board = np.zeros((
@@ -99,24 +105,7 @@ class BlockGameEnv(Env):
     def render(self, mode='human'):
         if mode != 'human':
             return
-        self.screen.fill((0, 0, 0))
-        grid_width = self.game.width * CELL_SIZE
-        grid_height = self.game.height * CELL_SIZE
-        grid_x = (self.screen.get_width() - grid_width) // 2
-        grid_y = (self.screen.get_height() - grid_height) // 2
-        board = self.game.get_visible_board()
-        for y in range(self.game.height):
-            for x in range(self.game.width):
-                rect = pg.Rect(grid_x + x * CELL_SIZE, grid_y + y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-                if board[y][x].state == 1:
-                    pg.draw.rect(self.screen, "white", rect)
-                elif board[y][x].state == 2:
-                    pg.draw.rect(self.screen, "red", rect)
-                else:
-                    pg.draw.rect(self.screen, "white", rect, 1)
-        print(self.game.score, self.game.level)
-        pg.display.flip()
-        self.clock.tick(TICK_RATE)
+        print(self.game)
 
     def close(self):
         pg.quit()
@@ -130,8 +119,7 @@ gymnasium.register(
     kwargs={
         'n_preview': 5,
         'line_limit': 150,
-        'rand_board': False,
-        'n_holes': 1,
-        'set_speed': None
+        'set_speed': None,
+        'dot_game': False
     }
 )
