@@ -29,7 +29,8 @@ class n_bag:
     def preview_bag(self, n):
         if n > self.n:
             n = self.n
-        return self.bag[-n:]
+        indices = self.bag[-n:]
+        return [self.item_set[i] for i in indices]
 
     def gen_next_bag(self):
         new_ord = list(range(self.n))
@@ -520,11 +521,7 @@ class BlockGame:
     def get_preview_pieces(self, n):
         if n > 7:
             n = 7
-        indices = self.bag.preview_bag(n)
-        pieces = []
-        for i in indices:
-            pieces.append(copy(piece_set[i]))
-        return pieces
+        return self.bag.preview_bag(n)
 
 
     def __str__(self):

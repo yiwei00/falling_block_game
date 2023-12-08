@@ -40,14 +40,14 @@ class BlockGameEnv(Env):
             **self.game_args
         )
 
-        board_size = self.game.width * self.game.height
-        board_space = [3] * board_size
+        board_space = [self.game.height] * self.game.width
+        active_space = [self.game.true_height, self.game.width, 4, len(piece_t)]
         preview_space = [len(piece_t)] * self.n_preview
         # hold piece (int), just held (bool), level (int), n resets (int), line count (int), combo count (int)
         misc_space = [len(piece_t) + 1, 2, line_limit//10 + 2, 16, line_limit + 1, line_limit + 2]
 
         self.action_space = spaces.Discrete(len(action_t))
-        self.observation_space = spaces.MultiDiscrete(board_space + preview_space + misc_space)
+        self.observation_space = spaces.MultiDiscrete(board_space + active_space + preview_space + misc_space)
 
 
     def reset(self, seed = None):
@@ -55,6 +55,7 @@ class BlockGameEnv(Env):
             seed = seed,
             **self.game_args
         )
+        random.seed(seed)
         self.prev_score = 0
         state = self.get_state()
         return state, {}
@@ -68,19 +69,23 @@ class BlockGameEnv(Env):
         return self.get_state(), reward, self.game.is_over or self.game.is_full_clear, False, {}
 
     def get_state(self):
-        state_board = np.zeros((
-            self.game.height,
-            self.game.width
-        ), dtype=np.int32)
         visible_board = self.game.get_visible_board()
-        for r in range(self.game.height):
-            for c in range(self.game.width):
-                state_board[r][c] = visible_board[r][c].state
+        board = np.zeros((self.game.width,), dtype=np.int32)
+        for c in range(self.game.width):
+            for r in range(self.game.height):
+                if visible_board[r][c] != 0:
+                    board[c] = r
+                else:
+                    break
+        active_pos = self.game.active_piece_pos
+        active_rot = self.game.active_piece.rotation
+        active_piece = self.game.active_piece.piece_type
+        active_arr = [active_pos[0], active_pos[1], active_rot, piece2num(active_piece)]
         preview = self.game.get_preview_pieces(self.n_preview)
         preview_arr = np.zeros(self.n_preview, dtype=np.int32)
         for i in range(self.n_preview):
             preview_arr[i] = piece2num(preview[i])
-        flat_board = state_board.flatten()
+        board = board.flatten()
         preview_arr = preview_arr.flatten()
         held_piece = -1
         if self.game.hold_piece is not None:
@@ -93,13 +98,15 @@ class BlockGameEnv(Env):
             self.game.line_count,
             self.game.combo_count + 1,
         ], dtype=np.int32).flatten()
-        state = np.concatenate((flat_board, preview_arr, misc_state))
+        state = np.concatenate((board, active_arr, preview_arr, misc_state))
         return state
     def reward(self):
         r = (self.game.score - self.prev_score)
         self.prev_score = self.game.score
         if self.game.is_over:
             r -= 10_000
+        elif self.is_full_clear:
+            r += 10_000
         return r
 
     def render(self, mode='human'):

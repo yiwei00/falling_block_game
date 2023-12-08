@@ -2,7 +2,7 @@ from env import BlockGameEnv
 from stable_baselines3 import DQN
 import gymnasium
 
-env = gymnasium.make('BlockGame-v0', set_speed=0, dot_game=True)
+env = gymnasium.make('BlockGame-v0', set_speed=1, dot_game=True)
 
 model = DQN(
     'MlpPolicy', env, verbose=1, device="cuda",

@@ -5,11 +5,20 @@ import random
 CELL_SIZE = 25
 TICK_RATE = 60
 
+def gen_dot_board(n = 15, width = 10, height = 20):
+    board = [[0 for _ in range(width)] for _ in range(height)]
+    for r in range(height)[:-(n+1):-1]:
+        empty = random.randint(0, width-1)
+        for c in range(width):
+            if c != empty:
+                board[r][c] = 1
+    return board
+
 def main():
     pg.init()
     screen = pg.display.set_mode((800, 600))
     clock = pg.time.Clock()
-    game = BlockGame(1, piece_subset=dot_piece_set)
+    game = BlockGame(1, piece_subset=dot_piece_set, starting_board=gen_dot_board(15))
     while True:
         # input
         for event in pg.event.get():
@@ -57,7 +66,7 @@ def main():
                     pg.draw.rect(screen, "red", rect)
                 else:
                     pg.draw.rect(screen, "white", rect, 1)
-        print(game.score, game.level)
+        print(game)
         pg.display.flip()
         clock.tick(TICK_RATE)
 
