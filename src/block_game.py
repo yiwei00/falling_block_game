@@ -66,7 +66,8 @@ class BlockGame:
         line_limit = 150,
         rand_board = False,
         n_holes = 1,
-        set_speed = None
+        set_speed = None,
+        **kwargs
     ):
         if seed is not None:
             random.seed(seed)

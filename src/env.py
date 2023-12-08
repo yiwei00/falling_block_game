@@ -6,7 +6,7 @@ from stable_baselines3.common.env_checker import check_env
 import pygame as pg
 
 CELL_SIZE = 25
-TICK_RATE = 30
+TICK_RATE = 20
 
 def piece2num(piece):
     return piece.piece_type.value
@@ -23,6 +23,12 @@ class BlockGameEnv(Env):
             n_holes=n_holes,
             set_speed=set_speed
         )
+        self.game_args = {
+            'line_limit': line_limit,
+            'rand_board': rand_board,
+            'n_holes': n_holes,
+            'set_speed': set_speed
+        }
         self.prev_score = 0
 
         board_size = self.game.width * self.game.height
@@ -39,7 +45,10 @@ class BlockGameEnv(Env):
 
 
     def reset(self, seed = None):
-        self.game = BlockGame(seed = seed)
+        self.game = BlockGame(
+            seed = seed,
+            **self.game_args
+        )
         self.prev_score = 0
         state = self.get_state()
         return state, {}
