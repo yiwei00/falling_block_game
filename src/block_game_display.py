@@ -35,7 +35,7 @@ def main():
         # update game state
         if game.is_over:
             exit(0)
-        game.next_state()
+        game.update_state()
 
         # render
         screen.fill((0, 0, 0))

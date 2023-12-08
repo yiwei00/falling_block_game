@@ -6,8 +6,6 @@ from piece import *
 
 LOCK_DELAY = 30
 
-random.seed(None)
-
 class action_t(Enum):
     NONE = 0
     LEFT = 1
@@ -24,14 +22,13 @@ class n_bag:
     def __init__(self, item_set):
         self.item_set = item_set
         self.n = len(self.item_set)
-        self.bag_index = 0
         self.bag = []
         self.gen_next_bag()
 
     def preview_bag(self, n):
         if n > self.n:
             n = self.n
-        return self.bag[:n]
+        return self.bag[-n:]
 
     def gen_next_bag(self):
         new_ord = list(range(self.n))
@@ -62,8 +59,10 @@ class Cell:
         return c
 
 class BlockGame:
-    def __init__(self, start_lvl = 1, line_limit = 300):
-        self.start_lvl = min(start_lvl, 16)
+    def __init__(self, seed = None, start_lvl = 1, line_limit = 150):
+        if seed is not None:
+            random.seed(seed)
+        self.start_lvl = min(start_lvl, 15)
         self.line_limit = line_limit
         self.reset()
 
@@ -98,7 +97,7 @@ class BlockGame:
 
         # game speed
         self.game_speed_curve = [
-            60, 56, 51, 47, 43, 38, 34, 30, 25, 21, 17, 12, 8, 4, 1, 0
+            60, 56, 51, 47, 43, 38, 34, 30, 25, 21, 17, 12, 8, 4, 0
         ]
         self.frames_per_line = self.game_speed_curve[self.start_lvl - 1]
         self.frame_count = 0
@@ -212,7 +211,7 @@ class BlockGame:
         return False
 
 
-    def next_state(self):
+    def update_state(self):
         if self.is_over:
             return
         if self.active_piece is None:
@@ -427,7 +426,7 @@ class BlockGame:
                     return
                 # update level
                 self.level = self.start_lvl + self.line_count // 10
-                self.level = min(self.level, 16)
+                self.level = min(self.level, 15)
                 # update gravity
                 self.frames_per_line = self.game_speed_curve[self.level - 1]
                 # turn off soft drop

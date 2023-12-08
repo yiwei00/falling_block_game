@@ -1,13 +1,13 @@
 from enum import Enum
 
 class piece_t(Enum):
-    J = 1
-    L = 2
-    O = 3
-    I = 4
-    T = 5
-    S = 6
-    Z = 7
+    J = 0
+    L = 1
+    O = 2
+    I = 3
+    T = 4
+    S = 5
+    Z = 6
     def __repr__(self) -> str:
         return super().__repr__()
 
