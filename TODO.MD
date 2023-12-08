@@ -21,7 +21,7 @@
 ## Stretch Goals
 
 - [ ] Ghost Piece
-- [ ] Soft Drop
+- [x] Soft Drop
 - [ ] Colored Pieces
 - [x] Pygame GUI
 - [x] Delayed Lock

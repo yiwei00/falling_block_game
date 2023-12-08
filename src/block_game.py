@@ -62,8 +62,9 @@ class Cell:
         return c
 
 class BlockGame:
-    def __init__(self, start_lvl = 1):
+    def __init__(self, start_lvl = 1, line_limit = 300):
         self.start_lvl = min(start_lvl, 16)
+        self.line_limit = line_limit
         self.reset()
 
     def reset(self):
@@ -420,6 +421,10 @@ class BlockGame:
                     self.combo_count = -1
 
                 self.score += (line_score + combo_score + t_trick_score) * self.level
+                # end game if over line limit
+                if self.line_count >= self.line_limit:
+                    self.is_over = True
+                    return
                 # update level
                 self.level = self.start_lvl + self.line_count // 10
                 self.level = min(self.level, 16)
