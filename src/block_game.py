@@ -121,6 +121,7 @@ class BlockGame:
 
         # misc state keeping
         self.is_over = False
+        self.reach_line_limit = False
         self.hard_drop = False
         self.soft_drop = False
         self.is_full_clear = False
@@ -245,7 +246,7 @@ class BlockGame:
 
 
     def update_state(self):
-        if self.is_over:
+        if self.is_over or self.reach_line_limit:
             return
         if self.active_piece is None:
             self.drop_piece(self.bag.grab_item())
@@ -469,7 +470,7 @@ class BlockGame:
                 self.score += (line_score + combo_score + t_trick_score) * self.level
                 # end game if over line limit
                 if self.line_count >= self.line_limit:
-                    self.is_over = True
+                    self.reach_line_limit = True
                     return
                 # update level
                 self.level = self.start_lvl + self.line_count // 10

@@ -14,7 +14,7 @@ def piece2num(piece):
 def num2act(num):
     return action_t(num)
 
-def gen_dot_board(n = 15, width = 10, height = 20):
+def gen_dot_board(n = 10, width = 10, height = 20):
     board = [[0 for _ in range(width)] for _ in range(height)]
     for r in range(height)[:-(n+1):-1]:
         empty = random.randint(0, width-1)
@@ -26,6 +26,8 @@ def gen_dot_board(n = 15, width = 10, height = 20):
 class BlockGameEnv(Env):
     def __init__(self, n_preview=5, line_limit=150, set_speed = None, dot_game = False):
         self.n_preview = n_preview if not dot_game else 1
+        dot_game_lines = 5
+        line_limit = line_limit if not dot_game else dot_game_lines
         self.game_args = {
             'line_limit': line_limit,
             'set_speed': set_speed,
@@ -34,20 +36,20 @@ class BlockGameEnv(Env):
         }
         if dot_game:
             self.game_args['piece_subset'] = dot_piece_set
-            self.game_args['starting_board'] = gen_dot_board()
+            self.game_args['starting_board'] = gen_dot_board(dot_game_lines)
         self.prev_score = 0
         self.game = BlockGame(
             **self.game_args
         )
 
-        board_space = [self.game.height] * self.game.width
+        board_space = [self.game.height + 1]*self.game.width
         active_space = [self.game.true_height, self.game.width, 4, len(piece_t)]
         preview_space = [len(piece_t)] * self.n_preview
         # hold piece (int), just held (bool), level (int), n resets (int), line count (int), combo count (int)
         misc_space = [len(piece_t) + 1, 2, line_limit//10 + 2, 16, line_limit + 1, line_limit + 2]
 
-        self.action_space = spaces.Discrete(len(action_t))
-        self.observation_space = spaces.MultiDiscrete(board_space + active_space + preview_space + misc_space)
+        self.action_space = spaces.Discrete(3)
+        self.observation_space = spaces.MultiDiscrete(board_space + active_space + preview_space)
 
 
     def reset(self, seed = None):
@@ -61,22 +63,36 @@ class BlockGameEnv(Env):
         return state, {}
 
     def step(self, action):
-        self.game.set_action(num2act(action))
+        act = action_t.NONE
+        match action:
+            case 0:
+                act = action_t.LEFT
+            case 1:
+                act = action_t.RIGHT
+            case 2:
+                act = action_t.HARD_DROP
+        self.game.set_action(act)
         self.game.update_state()
         new_score = self.game.score
         reward = new_score - self.prev_score
         self.prev_score = new_score
-        return self.get_state(), reward, self.game.is_over or self.game.is_full_clear, False, {}
+        terminal = (
+            self.game.is_over or
+            self.game.is_full_clear or
+            self.game.reach_line_limit
+        )
+        return self.get_state(), reward, terminal, False, {}
 
     def get_state(self):
         visible_board = self.game.get_visible_board()
         board = np.zeros((self.game.width,), dtype=np.int32)
         for c in range(self.game.width):
             for r in range(self.game.height):
-                if visible_board[r][c] != 0:
+                if visible_board[r][c].state != 1:
                     board[c] = r
                 else:
                     break
+        # get active piece pos
         active_pos = self.game.active_piece_pos
         active_rot = self.game.active_piece.rotation
         active_piece = self.game.active_piece.piece_type
@@ -90,15 +106,15 @@ class BlockGameEnv(Env):
         held_piece = -1
         if self.game.hold_piece is not None:
             held_piece = self.game.hold_piece.value
-        misc_state = np.array([
-            held_piece + 1,
-            int(self.game.just_held),
-            self.game.level,
-            self.game.n_resets,
-            self.game.line_count,
-            self.game.combo_count + 1,
-        ], dtype=np.int32).flatten()
-        state = np.concatenate((board, active_arr, preview_arr, misc_state))
+        # misc_state = np.array([
+        #     held_piece + 1,
+        #     int(self.game.just_held),
+        #     self.game.level,
+        #     self.game.n_resets,
+        #     self.game.line_count,
+        #     self.game.combo_count + 1,
+        # ], dtype=np.int32).flatten()
+        state = np.concatenate((board, active_arr, preview_arr))#misc_state))
         return state
     def reward(self):
         r = (self.game.score - self.prev_score)
@@ -106,7 +122,7 @@ class BlockGameEnv(Env):
         if self.game.is_over:
             r -= 10_000
         elif self.is_full_clear:
-            r += 10_000
+            r += 100_000
         return r
 
     def render(self, mode='human'):

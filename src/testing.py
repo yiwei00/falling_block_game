@@ -8,6 +8,7 @@ model = DQN('MlpPolicy', env, verbose=1)
 model.load("dqn_blockgame")
 
 obs, _ = env.reset()
+print(obs)
 while True:
     action, _states = model.predict(obs)
     obs, _reward, dones, _trunc, _info = env.step(action)
