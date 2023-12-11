@@ -5,6 +5,8 @@ This is for myself, feel free to ignore.
 - [ ] Clean up spaghetti from the *crunch*
 - [ ] Transition to delta-time based logic
 - [ ] Seperate rendering and logical frames
+- [ ] Have consistent name, remove either "block" or "piece"
+- [ ] Add tests
 - [ ] Swap to another language, one that can be jammed into a game engine
 
 ## GUI (can simplify by using an engine)

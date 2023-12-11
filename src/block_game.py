@@ -88,6 +88,8 @@ class BlockGame:
         self.piece_subset = piece_subset
         self.reset()
 
+    # TODO: clean up state variables, move functionality to __init__ if possible
+    #       ie, determin which ones are "const" and which not
     def reset(self):
         self.width = 10
         self.height = 20
@@ -250,7 +252,7 @@ class BlockGame:
         if self.active_piece is None:
             self.drop_piece(self.bag.grab_item())
         center = self.active_piece.center
-        # process action
+        # process action TODO: unnecessary, move functionality to set_action
         offset = (0, 0)
         rot_dir = 0
         match self.last_action:
@@ -291,6 +293,9 @@ class BlockGame:
         self.last_action = action_t.NONE
         # count frames
         self.frame_count += 1
+
+        # TODO: move to function "move_piece"
+        #region move piece
         # rotate piece
         move_success = False
         if rot_dir != 0:
@@ -306,9 +311,11 @@ class BlockGame:
         # soft reset lock delay if move was successful
         if move_success:
             self.soft_reset_lock_delay()
-        # see if time to fall, and if so, fall
-        # if at bottom, start lock delay if not started
-        # if fall, then reset lock delay
+        #endregion
+
+        # TODO: move to function (name in progress) "pre_fall_stage"
+        #region pre-fall stage
+        # pre_fall_stage
         can_fall = self.can_active_fall()
         if can_fall:
             if self.frames_per_line == 0:
@@ -325,7 +332,17 @@ class BlockGame:
                     self.last_fall_frame = self.frame_count
         elif not self.lock_delay_started:
                 self.start_lock_delay()
+        #endregion
+
         if (not can_fall) and (self.hard_drop or (self.should_lock())):
+            # this big block is for handling both locking and what happens after a piece locks
+            # The real start of the spaghetti
+            # TODO: divide into sections:
+            #    1. locking,
+            #    2. row-clear logic,
+            #    3. trick detection logic,
+            #    4. scoring,
+            #    5. internal update
             # setting active into board
             t_trick = 0
             self.hard_drop = False
@@ -343,11 +360,12 @@ class BlockGame:
                             lock_on_visible = True
             if not lock_on_visible: # if set above the visible board, game over
                 self.is_over = True
+            # this else marks the start of the "scoring" section
             else:
                 self.is_full_clear = False
                 # reset held
                 self.just_held = False
-                # check for t-trick
+                # check for t-trick TODO: move to function, (safe to put after row-clear logic?)
                 if self.active_piece.piece_type == piece_t.T and self.t_trick_possible:
                     match self.active_piece.rotation:
                         case 0:
@@ -404,7 +422,7 @@ class BlockGame:
                             t_trick = 2
                         t_trick = 1
                     self.t_trick_possible = False
-                # check for clear
+                # check for clear TODO: move to function
                 clear_count = 0
                 while True:
                     found_clear = False
@@ -426,7 +444,7 @@ class BlockGame:
                             [self.board[r][c].state != 1 for c in range(self.width)]
                         ) for r in range(self.true_height)
                     )
-                # scoring
+                # scoring #TODO: move to function
                 t_trick_score = 0
                 line_score = 0
                 combo_score = 0
