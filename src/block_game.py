@@ -1,9 +1,8 @@
-# falling blocks game (cannot use actual name for legal reasons)
+# falling blocks game
 from enum import Enum
 import random
 from copy import copy
 from piece import *
-import numpy as np
 
 LOCK_DELAY = 30
 

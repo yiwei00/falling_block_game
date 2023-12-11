@@ -2,7 +2,6 @@ import numpy as np
 from block_game import *
 from gymnasium import Env, spaces
 import gymnasium
-from stable_baselines3.common.env_checker import check_env
 import pygame as pg
 
 CELL_SIZE = 25
@@ -133,8 +132,6 @@ class BlockGameEnv(Env):
     def close(self):
         pg.quit()
         exit(0)
-
-print(check_env(BlockGameEnv()))
 
 gymnasium.register(
     id='BlockGame-v0',
