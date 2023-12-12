@@ -2,11 +2,10 @@
 from enum import Enum
 import random
 from copy import copy
-from piece import *
+from block_game_pieces import *
 
-LOCK_DELAY = 30
-
-class action_t(Enum):
+# TODO: change input to be 2-tuple ()
+class input_t(Enum):
     NONE = 0
     LEFT = 1
     RIGHT = 2
@@ -43,7 +42,7 @@ class n_bag:
         return copy(self.item_set[item_idx])
 
 piece_set = copy(list(piece_t))
-action_set = copy(list(action_t))
+input_set = copy(list(input_t))
 
 std_piece_set = [
     piece_t.J, piece_t.L, piece_t.O, piece_t.I, piece_t.T, piece_t.S, piece_t.Z
@@ -75,6 +74,7 @@ class BlockGame:
     ):
         if seed is not None:
             random.seed(seed)
+        # level parameters
         self.start_lvl = min(start_lvl, 15)
         self.line_limit = line_limit
         self.set_speed = set_speed
@@ -86,22 +86,25 @@ class BlockGame:
             ][i]
         self.starting_board = starting_board
         self.piece_subset = piece_subset
-        self.reset()
-
-    # TODO: clean up state variables, move functionality to __init__ if possible
-    #       ie, determin which ones are "const" and which not
-    def reset(self):
+        # board variables
         self.width = 10
         self.height = 20
         self.buffer = 20
         self.true_height = self.height + self.buffer
+        self.spawn_pos = (self.buffer - 2, self.width//2 -1)
+        # game variables
+        self.RESET_LIMIT = 15
+        self.lock_delay_dur = 30
 
+        self.reset()
+
+    def reset(self):
+        # regenerate board
         self.board = [[Cell(x, y) for x in range(self.width)] for y in range(self.height + self.buffer)]
         if self.starting_board is not None:
             for row in range(len(self.starting_board)):
                 for col in range(len(self.starting_board[row])):
                     self.board[self.buffer + row][col].state = self.starting_board[row][col]
-        self.block_queue = []
 
         # Drop the first piece
         if self.piece_subset is None:
@@ -111,20 +114,17 @@ class BlockGame:
                 self.bag = n_bag(self.piece_subset)
             else:
                 raise Exception('Invalid piece subset')
-        self.spawn_pos = (self.buffer - 2, self.width//2 -1)
         self.active_piece = None
         self.active_piece_pos = (0, 0)
         self.drop_piece(self.bag.grab_item())
 
-        # actions
-        self.last_action = action_t.NONE
-        self.soft_drop_fpl = 8
+        # input
+        self.input_queue = []
 
         # misc state keeping
         self.is_over = False
         self.reach_line_limit = False
         self.hard_drop = False
-        self.soft_drop = False
         self.is_full_clear = False
 
         # hold piece
@@ -137,7 +137,6 @@ class BlockGame:
         self.last_fall_frame = 0
 
         # lock delay
-        self.RESET_LIMIT = 15
         self.lock_delay_started = False
         self.lock_time = 0
         self.n_resets = 0
@@ -153,8 +152,68 @@ class BlockGame:
         self.t_trick_offset = (0, 0)
 
 
-    def set_action(self, action):
-        self.last_action = action
+    def set_input(self, input):
+        self.input_queue.append(input)
+
+    def handle_controlled_movement(self, offset, rot_dir):
+        move_success = False
+        if rot_dir != 0:
+            if (self.try_rotate_piece(rot_dir)):
+                move_success = True
+        # move piece
+        if (self.move_active_piece(offset)):
+            move_success = True
+            self.t_trick_possible = False
+        # hard drop
+        if self.hard_drop:
+            while self.move_active_piece((1, 0)):
+                pass
+        # reset lock delay
+        if move_success:
+            self.soft_reset_lock_delay()
+
+    def swap_hold(self):
+        if self.just_held:
+            return
+        self.just_held = True
+        self.hard_reset_lock_delay()
+        if self.hold_piece is None:
+            self.hold_piece = self.active_piece.piece_type
+            self.drop_piece(self.bag.grab_item())
+        else:
+            temp_piece = self.active_piece.piece_type
+            self.drop_piece(self.hold_piece)
+            self.hold_piece = temp_piece
+
+    def handle_inputs(self):
+        if self.input_queue == []:
+            return
+        # TODO: reconsider whether to bundle all movement into one offset
+        # TODO: when soft dropping, prevent normal falling?
+        # TODO: when reworking "speed", change soft drop to be a multiplier
+        offset = (0, 0)
+        rot_dir = 0
+        for input in self.input_queue:
+            match input:
+                case input_t.LEFT:
+                    offset = (offset[0], offset[1] - 1)
+                case input_t.RIGHT:
+                    offset = (offset[0], offset[1] + 1)
+                case input_t.SOFT_DROP:
+                    offset = (offset[0] + 1, offset[1])
+                case input_t.HARD_DROP:
+                    self.hard_drop = True
+                case input_t.ROTATE_LEFT:
+                    rot_dir = -1
+                case input_t.ROTATE_RIGHT:
+                    rot_dir = 1
+                case input_t.HOLD:
+                    self.swap_hold()
+                case default:
+                    print('Unimplemented input: ' + str(self.input.name))
+        self.input_queue = []
+        self.handle_controlled_movement(offset, rot_dir)
+
 
     def can_fit(self, piece, pos):
         center = piece.center
@@ -195,10 +254,9 @@ class BlockGame:
         self.n_resets = 0
         self.lock_delay_started = True
 
-    # return true lock delay allows it
     def should_lock(self):
         if self.lock_delay_started:
-            over_time = (self.frame_count - self.lock_time) >= LOCK_DELAY
+            over_time = (self.frame_count - self.lock_time) >= self.lock_delay_dur
             if over_time:
                 self.hard_reset_lock_delay()
             return over_time
@@ -245,91 +303,33 @@ class BlockGame:
                 return True
         return False
 
-
     def update_state(self):
+        # check if game is over
         if self.is_over or self.reach_line_limit:
             return
+        # drop new piece if none
         if self.active_piece is None:
             self.drop_piece(self.bag.grab_item())
-        center = self.active_piece.center
-        # process action TODO: unnecessary, move functionality to set_action
-        offset = (0, 0)
-        rot_dir = 0
-        match self.last_action:
-            case action_t.NONE:
-                pass
-            case action_t.LEFT:
-                offset = (0, -1)
-                pass
-            case action_t.RIGHT:
-                offset = (0, 1)
-                pass
-            case action_t.HARD_DROP:
-                self.hard_drop = True
-                pass
-            case action_t.SOFT_DROP:
-                self.soft_drop = True
-                pass
-            case action_t.ROTATE_LEFT:
-                rot_dir = -1
-                pass
-            case action_t.ROTATE_RIGHT:
-                rot_dir = 1
-                pass
-            case action_t.HOLD:
-                if not self.just_held:
-                    self.just_held = True
-                    self.hard_reset_lock_delay()
-                    if self.hold_piece is None:
-                        self.hold_piece = self.active_piece.piece_type
-                        self.drop_piece(self.bag.grab_item())
-                    else:
-                        temp_piece = self.active_piece.piece_type
-                        self.drop_piece(self.hold_piece)
-                        self.hold_piece = temp_piece
-                pass
-            case default:
-                print('Unimplemented action: ' + str(self.last_action.name))
-        self.last_action = action_t.NONE
         # count frames
         self.frame_count += 1
-
-        # TODO: move to function "move_piece"
-        #region move piece
-        # rotate piece
-        move_success = False
-        if rot_dir != 0:
-            if (self.try_rotate_piece(rot_dir)):
-                move_success = True
-        # move piece
-        if (self.move_active_piece(offset)):
-            move_success = True
-            self.t_trick_possible = False
-        if self.hard_drop:
-            while self.move_active_piece((1, 0)):
-                pass
-        # soft reset lock delay if move was successful
-        if move_success:
-            self.soft_reset_lock_delay()
-        #endregion
+        # update state based on player input
+        self.handle_inputs()
 
         # TODO: move to function (name in progress) "pre_fall_stage"
-        #region pre-fall stage
-        # pre_fall_stage
+        #region handle falling
         can_fall = self.can_active_fall()
         if can_fall:
+            # if "gravity" is max, fall immediately
             if self.frames_per_line == 0:
                 while self.move_active_piece((1, 0)):
                     self.hard_reset_lock_delay()
                     self.last_fall_frame = self.frame_count
-            elif (
-                    ((self.frame_count - self.frames_per_line) % self.frames_per_line == 0) or
-                    (self.soft_drop)
-                ):
-                self.soft_drop = False
+            # otherwise wait for fall delay then fall
+            elif (((self.frame_count) % self.frames_per_line == 0)):
                 if self.move_active_piece((1, 0)):
                     self.hard_reset_lock_delay()
                     self.last_fall_frame = self.frame_count
+        # if at bottom, start lock delay if not already started
         elif not self.lock_delay_started:
                 self.start_lock_delay()
         #endregion
@@ -351,8 +351,8 @@ class BlockGame:
             for row in range(len(self.active_piece.shape)):
                 for col in range(len(self.active_piece.shape[row])):
                     if self.active_piece.shape[row][col] == 1:
-                        r = self.active_piece_pos[0] + (row - center[0])
-                        c = self.active_piece_pos[1] + (col - center[1])
+                        r = self.active_piece_pos[0] + (row - self.active_piece.center[0])
+                        c = self.active_piece_pos[1] + (col - self.active_piece.center[1])
                         if (r < 0 or r >= self.true_height or c < 0 or c >= self.width):
                             continue
                         self.board[r][c].state = 1
@@ -400,15 +400,15 @@ class BlockGame:
                             raise Exception('Invalid rotation: ' + str(self.active_piece.rotation))
                     front_obs, back_obs = 0, 0
                     for pos in front_pos:
-                        r = self.active_piece_pos[0] + (pos[0] - center[0])
-                        c = self.active_piece_pos[1] + (pos[1] - center[1])
+                        r = self.active_piece_pos[0] + (pos[0] - self.active_piece.center[0])
+                        c = self.active_piece_pos[1] + (pos[1] - self.active_piece.center[1])
                         if (r < 0 or r >= self.true_height or c < 0 or c >= self.width):
                             continue
                         if self.board[r][c].state == 1:
                             front_obs += 1
                     for pos in back_pos:
-                        r = self.active_piece_pos[0] + (pos[0] - center[0])
-                        c = self.active_piece_pos[1] + (pos[1] - center[1])
+                        r = self.active_piece_pos[0] + (pos[0] - self.active_piece.center[0])
+                        c = self.active_piece_pos[1] + (pos[1] - self.active_piece.center[1])
                         if (r < 0 or r >= self.true_height or c < 0 or c >= self.width):
                             continue
                         if self.board[r][c].state == 1:
@@ -552,8 +552,7 @@ class BlockGame:
             s += line + '\n'
         hold = '?' if self.hold_piece is None else self.hold_piece.name
         next_pieces = ' '.join(f'[{p.name}]' for p in self.get_preview_pieces(5))
-        last_action = self.last_action.name
-        s += f'Hold: {hold} | Next: {next_pieces} | Action: {last_action}\n'
+        s += f'Hold: {hold} | Next: {next_pieces}\n'
         s += f'Score: {self.score} | Lines: {self.line_count}/{self.line_limit} | Level: {self.level}\n'
         return s
 

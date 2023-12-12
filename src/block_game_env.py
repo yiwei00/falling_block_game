@@ -11,7 +11,7 @@ def piece2num(piece):
     return piece.value
 
 def num2act(num):
-    return action_t(num)
+    return input_t(num)
 
 def gen_dot_board(n = 10, width = 10, height = 20):
     board = [[0 for _ in range(width)] for _ in range(height)]
@@ -62,15 +62,15 @@ class BlockGameEnv(Env):
         return state, {}
 
     def step(self, action):
-        act = action_t.NONE
+        act = input_t.NONE
         match action:
             case 0:
-                act = action_t.LEFT
+                act = input_t.LEFT
             case 1:
-                act = action_t.RIGHT
+                act = input_t.RIGHT
             case 2:
-                act = action_t.HARD_DROP
-        self.game.set_action(act)
+                act = input_t.HARD_DROP
+        self.game.set_input(act)
         self.game.update_state()
         new_score = self.game.score
         reward = new_score - self.prev_score
